@@ -143,16 +143,47 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Utility: truncate for cards
-function truncateText(text, wordLimit = 20) {
+// Utility: truncate for cards, preserving HTML
+function truncateText(html, wordLimit = 20) {
   const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = text;
-  const plainText = tempDiv.textContent || tempDiv.innerText || "";
-  const words = plainText.trim().split(/\s+/);
-  if (words.length > wordLimit) {
-    return words.slice(0, wordLimit).join(' ') + '… <span class="text-pink-600 font-semibold block mt-2">See more</span>';
+  tempDiv.innerHTML = html;
+
+  let count = 0;
+
+  function truncateNode(node) {
+    if (count >= wordLimit) return null;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const words = node.textContent.trim().split(/\s+/);
+      if (count + words.length <= wordLimit) {
+        count += words.length;
+        return node.cloneNode();
+      } else {
+        const slice = words.slice(0, wordLimit - count).join(' ');
+        count = wordLimit;
+        return document.createTextNode(slice + '… <span class="text-pink-600 font-semibold block mt-2">See more</span>');
+      }
+    }
+
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const clone = node.cloneNode(false);
+      node.childNodes.forEach(child => {
+        const truncatedChild = truncateNode(child);
+        if (truncatedChild) clone.appendChild(truncatedChild);
+      });
+      return clone;
+    }
+
+    return null;
   }
-  return text;
+
+  const truncated = Array.from(tempDiv.childNodes)
+    .map(node => truncateNode(node))
+    .filter(n => n !== null);
+
+  const wrapper = document.createElement('div');
+  truncated.forEach(n => wrapper.appendChild(n));
+  return wrapper.innerHTML;
 }
 
 // Modal open/close
