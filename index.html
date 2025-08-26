@@ -191,7 +191,10 @@ onSnapshot(portfolioDocRef, (docSnap) => {
     // Prefer GitHub raw URL
     const resumeUrl = data.resume.gitUrl || data.resume.localUrl;
 
-    const openResume = () => window.open(resumeUrl, "_blank"); // opens in browser
+    const openResume = () => {
+      const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(resumeUrl)}&embedded=true`;
+      window.open(viewerUrl, "_blank");
+    };
     if (resumeDesktop) resumeDesktop.onclick = openResume;
     if (resumeMobile) resumeMobile.onclick = openResume;
   }
