@@ -128,252 +128,237 @@
 
   <!-- FIREBASE + SCRIPTS -->
   <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyBsrXwcDBvaSOZct9DiYpZHzoIdFyV4NJc",
-    authDomain: "wpsh-portfolio.firebaseapp.com",
-    projectId: "wpsh-portfolio",
-    storageBucket: "wpsh-portfolio.appspot.com",
-    messagingSenderId: "654096898034",
-    appId: "1:654096898034:web:277a6d479cac10897c3d6b",
-    measurementId: "G-3CJ68T2L16"
-  };
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+const firebaseConfig = {
+  apiKey: "AIzaSyBsrXwcDBvaSOZct9DiYpZHzoIdFyV4NJc",
+  authDomain: "wpsh-portfolio.firebaseapp.com",
+  projectId: "wpsh-portfolio",
+  storageBucket: "wpsh-portfolio.appspot.com",
+  messagingSenderId: "654096898034",
+  appId: "1:654096898034:web:277a6d479cac10897c3d6b",
+  measurementId: "G-3CJ68T2L16"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-  // Utility: truncate for cards
-  function truncateText(text, wordLimit = 20) {
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = text;
-    const plainText = tempDiv.textContent || tempDiv.innerText || "";
-    const words = plainText.trim().split(/\s+/);
-    if (words.length > wordLimit) {
-      return words.slice(0, wordLimit).join(' ') + '… <span class="text-pink-600 font-semibold block mt-2">See more</span>';
-    }
-    return text;
+// Utility: truncate for cards
+function truncateText(text, wordLimit = 20) {
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = text;
+  const plainText = tempDiv.textContent || tempDiv.innerText || "";
+  const words = plainText.trim().split(/\s+/);
+  if (words.length > wordLimit) {
+    return words.slice(0, wordLimit).join(' ') + '… <span class="text-pink-600 font-semibold block mt-2">See more</span>';
+  }
+  return text;
+}
+
+// Modal open/close
+window.openProjectModal = function (image, title, role, description) {
+  document.getElementById("modalProjectImage").src = image;
+  document.getElementById("modalProjectTitle").textContent = title;
+  document.getElementById("modalProjectRole").textContent = role;
+  document.getElementById("modalProjectDescription").innerHTML = description;
+  const modal = document.getElementById("projectModal");
+  modal.style.display = "flex";
+  setTimeout(() => modal.classList.add('show'), 10);
+};
+window.closeProjectModal = function () {
+  const modal = document.getElementById("projectModal");
+  modal.classList.remove('show');
+  setTimeout(() => (modal.style.display = "none"), 400);
+};
+document.getElementById("projectModal").addEventListener("click", e => {
+  if (e.target.id === "projectModal") closeProjectModal();
+});
+
+// ---------- FIRESTORE DATA ----------
+const portfolioDocRef = doc(db, "portfolio", "main");
+onSnapshot(portfolioDocRef, (docSnap) => {
+  if (!docSnap.exists()) return console.error("Portfolio data not found!");
+  const data = docSnap.data();
+
+  // About
+  if (data.about) document.getElementById("about-me-text").textContent = data.about;
+
+  // Resume (use gitUrl if available)
+  if (data.resume) {
+    const resumeDesktop = document.getElementById("desktop-resume-link");
+    const resumeMobile = document.getElementById("mobile-resume-link");
+
+    // Prefer GitHub raw URL
+    const resumeUrl = data.resume.gitUrl || data.resume.localUrl;
+
+    const openResume = () => window.open(resumeUrl, "_blank"); // opens in browser
+    if (resumeDesktop) resumeDesktop.onclick = openResume;
+    if (resumeMobile) resumeMobile.onclick = openResume;
   }
 
-  // Modal open/close
-  window.openProjectModal = function (image, title, role, description) {
-    document.getElementById("modalProjectImage").src = image;
-    document.getElementById("modalProjectTitle").textContent = title;
-    document.getElementById("modalProjectRole").textContent = role;
-    document.getElementById("modalProjectDescription").innerHTML = description;
-    const modal = document.getElementById("projectModal");
-    modal.style.display = "flex";
-    setTimeout(() => modal.classList.add('show'), 10);
-  };
-  window.closeProjectModal = function () {
-    const modal = document.getElementById("projectModal");
-    modal.classList.remove('show');
-    setTimeout(() => (modal.style.display = "none"), 400);
-  };
-  document.getElementById("projectModal").addEventListener("click", e => {
-    if (e.target.id === "projectModal") closeProjectModal();
+  // Email
+  if (data.email) {
+    const emailLink = document.getElementById("email-link");
+    if (emailLink) emailLink.onclick = () => { window.location.href = `mailto:${data.email}`; };
+  }
+
+  // GitHub
+  if (data.github) {
+    const githubLink = document.getElementById("github-link");
+    if (githubLink) {
+      const url = data.github.startsWith("http") ? data.github : `https://${data.github}`;
+      githubLink.onclick = () => window.open(url, "_blank");
+    }
+  }
+
+  // LinkedIn
+  if (data.linkedin) {
+    const linkedinLink = document.getElementById("linkedin-link");
+    if (linkedinLink) {
+      const url = data.linkedin.startsWith("http") ? data.linkedin : `https://${data.linkedin}`;
+      linkedinLink.onclick = () => window.open(url, "_blank");
+    }
+  }
+
+  // Projects
+  const desktopContainer = document.getElementById("desktop-projects-container");
+  const mobileContainer = document.getElementById("mobile-projects-container");
+  desktopContainer.innerHTML = "";
+  mobileContainer.innerHTML = "";
+
+  if (data.projects && Array.isArray(data.projects)) {
+    data.projects.forEach((p, i) => {
+      const imgUrl = p.gitUrl || p.img; // prefer GitHub URL
+
+      // Desktop card
+      const desktopCard = document.createElement("div");
+      desktopCard.className = "relative w-full project-card fade-in";
+      desktopCard.style.transitionDelay = `${i * 0.1}s`;
+      desktopCard.innerHTML = `
+        <div class="img-container"><img src="${imgUrl}" alt="${p.title}"></div>
+        <div class="p-4 relative text-center">
+          <h3 class="font-bold text-lg text-gray-800">${p.title}</h3>
+          <p class="text-gray-500 text-sm mt-1">${p.role}</p>
+          <div class="overlay">${truncateText(p.desc)}</div>
+        </div>`;
+      desktopCard.addEventListener("click", () => openProjectModal(imgUrl, p.title, p.role, p.desc));
+      desktopContainer.appendChild(desktopCard);
+
+      // Mobile card
+      const mobileCard = document.createElement("div");
+      mobileCard.className = "project-card fade-in bg-white rounded-xl shadow-lg overflow-hidden";
+      mobileCard.style.transitionDelay = `${i * 0.1}s`;
+      mobileCard.innerHTML = `
+        <div class="img-container"><img src="${imgUrl}" alt="${p.title}"></div>
+        <div class="p-6 text-center">
+          <h3 class="text-gray-800 font-bold text-xl">${p.title}</h3>
+          <p class="text-gray-500 text-sm mt-1">${p.role}</p>
+          <div class="text-gray-600 text-sm mt-4 text-left">${truncateText(p.desc, 100)}</div>
+        </div>`;
+      mobileCard.addEventListener("click", () => openProjectModal(imgUrl, p.title, p.role, p.desc));
+      mobileContainer.appendChild(mobileCard);
+    });
+
+    // Fade-in observer
+    const observer = new IntersectionObserver((entries, obs) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("show");
+          obs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    document.querySelectorAll(".fade-in").forEach(el => observer.observe(el));
+  }
+});
+
+// ---------- NAVBAR, SCROLL ----------
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("menu-btn");
+  const menu = document.getElementById("mobile-menu");
+  btn.addEventListener("click", () => {
+    menu.classList.toggle("open");
+    btn.classList.toggle("open");
   });
 
-  // ---------- FIRESTORE DATA ----------
-  const portfolioDocRef = doc(db, "portfolio", "main");
-  onSnapshot(portfolioDocRef, (docSnap) => {
-    if (!docSnap.exists()) return console.error("Portfolio data not found!");
-    const data = docSnap.data();
-
-    // About
-    if (data.about) document.getElementById("about-me-text").textContent = data.about;
-
-    // Resume
-    if (data.resume) {
-      const resumeDesktop = document.getElementById("desktop-resume-link");
-      const resumeMobile = document.getElementById("mobile-resume-link");
-      const openResume = () => window.open(data.resume, "_blank");
-      if (resumeDesktop) resumeDesktop.onclick = openResume;
-      if (resumeMobile) resumeMobile.onclick = openResume;
-    }
-
-    // Email
-    if (data.email) {
-      const emailLink = document.getElementById("email-link");
-      if (emailLink) {
-        emailLink.onclick = () => {
-          window.location.href = `mailto:${data.email}`;
-        };
-      }
-    }
-
-    // GitHub
-    if (data.github) {
-      const githubLink = document.getElementById("github-link");
-      if (githubLink) {
-        const url = data.github.startsWith("http")
-          ? data.github
-          : `https://${data.github}`;
-        githubLink.onclick = () => window.open(url, "_blank");
-      }
-    }
-
-    // LinkedIn
-    if (data.linkedin) {
-      const linkedinLink = document.getElementById("linkedin-link");
-      if (linkedinLink) {
-        const url = data.linkedin.startsWith("http")
-          ? data.linkedin
-          : `https://${data.linkedin}`;
-        linkedinLink.onclick = () => window.open(url, "_blank");
-      }
-    }
-
-    // Projects
-    const desktopContainer = document.getElementById("desktop-projects-container");
-    const mobileContainer = document.getElementById("mobile-projects-container");
-    desktopContainer.innerHTML = "";
-    mobileContainer.innerHTML = "";
-
-    if (data.projects && Array.isArray(data.projects)) {
-      data.projects.forEach((p, i) => {
-        const desktopCard = document.createElement("div");
-        desktopCard.className = "relative w-full project-card fade-in";
-        desktopCard.style.transitionDelay = `${i * 0.1}s`;
-        desktopCard.innerHTML = `
-          <div class="img-container"><img src="${p.img}" alt="${p.title}"></div>
-          <div class="p-4 relative text-center">
-            <h3 class="font-bold text-lg text-gray-800">${p.title}</h3>
-            <p class="text-gray-500 text-sm mt-1">${p.role}</p>
-            <div class="overlay">${truncateText(p.desc)}</div>
-          </div>`;
-        desktopCard.addEventListener("click", () =>
-          openProjectModal(p.img, p.title, p.role, p.desc)
-        );
-        desktopContainer.appendChild(desktopCard);
-
-        const mobileCard = document.createElement("div");
-        mobileCard.className = "project-card fade-in bg-white rounded-xl shadow-lg overflow-hidden";
-        mobileCard.style.transitionDelay = `${i * 0.1}s`;
-        mobileCard.innerHTML = `
-          <div class="img-container"><img src="${p.img}" alt="${p.title}"></div>
-          <div class="p-6 text-center">
-            <h3 class="text-gray-800 font-bold text-xl">${p.title}</h3>
-            <p class="text-gray-500 text-sm mt-1">${p.role}</p>
-            <div class="text-gray-600 text-sm mt-4 text-left">${truncateText(p.desc, 100)}</div>
-          </div>`;
-        mobileCard.addEventListener("click", () =>
-          openProjectModal(p.img, p.title, p.role, p.desc)
-        );
-        mobileContainer.appendChild(mobileCard);
-      });
-
-      // Fade-in observer
-      const observer = new IntersectionObserver(
-        (entries, obs) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add("show");
-              obs.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.1 }
-      );
-      document.querySelectorAll(".fade-in").forEach((el) => observer.observe(el));
-    }
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener("click", function (e) {
+      e.preventDefault();
+      document.querySelector(this.getAttribute("href")).scrollIntoView({ behavior: "smooth" });
+      menu.classList.remove("open");
+      btn.classList.remove("open");
+    });
   });
 
-  // ---------- NAVBAR, SCROLL, BACKGROUND ----------
-  document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("menu-btn");
-    const menu = document.getElementById("mobile-menu");
-    btn.addEventListener("click", () => {
-      menu.classList.toggle("open");
-      btn.classList.toggle("open");
-    });
-
-    document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
-      anchor.addEventListener("click", function (e) {
-        e.preventDefault();
-        document
-          .querySelector(this.getAttribute("href"))
-          .scrollIntoView({ behavior: "smooth" });
-        menu.classList.remove("open");
-        btn.classList.remove("open");
-      });
-    });
-
-    // Assume your navbar has id="navbar"
-    const navbar = document.getElementById("navbar");
-
-    document.body.addEventListener("click", (e) => {
-      // Ignore clicks on the navbar itself
-      if (navbar.contains(e.target)) return;
-
-      // Scatter the circles
-      circles.forEach((c, i) => {
-        const extraX = (Math.random() - 0.5) * 200; // -100 to +100
-        const extraY = (Math.random() - 0.5) * 200;
-        const extraRot = (Math.random() - 0.5) * 60;
-
-        c.el.style.transition = "transform 0.8s ease-out";
-        c.el.style.transform = `translate(${extraX}px, ${extraY}px) rotate(${extraRot}deg)`;
-
-        // Return to normal after 1 second
-        setTimeout(() => {
-          c.el.style.transition = "transform 0.4s ease-out";
-          c.el.style.transform = `translate(0px, 0px) rotate(0deg)`;
-        }, 1000);
-      });
-    });
-
-    // Background circles
-    const container = document.getElementById("background-circles");
-    const circles = Array.from({ length: 15 }, (_, i) => {
-      const div = document.createElement("div");
-      const size = Math.random() * 120 + 80;
-      const top = Math.random() * 100;
-      const left = Math.random() * 100;
-      const opacity = Math.random() * 0.15 + 0.25;
-      const blur = Math.random() * 30 + 15;
-      const speed = 1 + Math.random() * 1; // slower, 1 → 2
-
-      Object.assign(div.style, {
-        position: "absolute",
-        width: `${size}px`,
-        height: `${size}px`,
-        top: `${top}%`,
-        left: `${left}%`,
-        backgroundColor: "#f9a8d4",
-        borderRadius: "50%",
-        opacity,
-        filter: `blur(${blur}px)`,
-        pointerEvents: "none",
-        transition: "transform 0.2s ease-out"
-      });
-
-      container.appendChild(div);
-      return { el: div, speed };
-    });
-
-    document.addEventListener("mousemove", (e) => {
-      const xr = e.clientX / window.innerWidth - 0.5;
-      const yr = e.clientY / window.innerHeight - 0.5;
-
-      circles.forEach((c, i) => {
-        const mx = xr * 30 * c.speed * ((i % 3) + 1); // smaller multiplier
-        const my = yr * 30 * c.speed * ((i % 3) + 1);
-        const rot = xr * 20 * ((i % 2) + 1); // smaller rotation
-        c.el.style.transform = `translate(${mx}px, ${my}px) rotate(${rot}deg)`;
-      });
-    });
-
-
-    const scrollTopBtn = document.getElementById("scrollToTopBtn");
-    window.addEventListener("scroll", () => {
-      if (window.scrollY > 300) scrollTopBtn.classList.add("show");
-      else scrollTopBtn.classList.remove("show");
-    });
-    scrollTopBtn.addEventListener("click", () =>
-      window.scrollTo({ top: 0, behavior: "smooth" })
-    );
+  const scrollTopBtn = document.getElementById("scrollToTopBtn");
+  window.addEventListener("scroll", () => {
+    if (window.scrollY > 300) scrollTopBtn.classList.add("show");
+    else scrollTopBtn.classList.remove("show");
   });
+  scrollTopBtn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+});
+
+// ---------- BACKGROUND BUBBLES ----------
+const container = document.getElementById("background-circles");
+const navbar = document.getElementById("navbar");
+const circles = Array.from({ length: 15 }, (_, i) => {
+  const div = document.createElement("div");
+  const size = Math.random() * 120 + 80;
+  const top = Math.random() * 100;
+  const left = Math.random() * 100;
+  const opacity = Math.random() * 0.15 + 0.25;
+  const blur = Math.random() * 30 + 15;
+  const speed = 0.2 + Math.random() * 0.5;
+
+  Object.assign(div.style, {
+    position: "absolute",
+    width: `${size}px`,
+    height: `${size}px`,
+    top: `${top}%`,
+    left: `${left}%`,
+    backgroundColor: "#f9a8d4",
+    borderRadius: "50%",
+    opacity,
+    filter: `blur(${blur}px)`,
+    pointerEvents: "none"
+  });
+
+  container.appendChild(div);
+  return { el: div, posX: 0, posY: 0, rot: 0, targetX: 0, targetY: 0, targetRot: 0, speed };
+});
+
+// Scatter bubbles on click (no return)
+document.body.addEventListener("click", (e) => {
+  if (navbar.contains(e.target)) return;
+  circles.forEach(c => {
+    c.targetX = (Math.random() - 0.5) * 200;
+    c.targetY = (Math.random() - 0.5) * 200;
+    c.targetRot = (Math.random() - 0.5) * 60;
+  });
+});
+
+// Animate bubbles
+function animateBubbles() {
+  circles.forEach(c => {
+    c.posX += (c.targetX - c.posX) * 0.02;
+    c.posY += (c.targetY - c.posY) * 0.02;
+    c.rot += (c.targetRot - c.rot) * 0.02;
+    c.el.style.transform = `translate(${c.posX}px, ${c.posY}px) rotate(${c.rot}deg)`;
+  });
+  requestAnimationFrame(animateBubbles);
+}
+animateBubbles();
+
+// Optional: subtle mouse-follow
+document.addEventListener("mousemove", e => {
+  const xr = e.clientX / window.innerWidth - 0.5;
+  const yr = e.clientY / window.innerHeight - 0.5;
+  circles.forEach((c, i) => {
+    const mx = xr * 10 * ((i % 3) + 1);
+    const my = yr * 10 * ((i % 3) + 1);
+    c.el.style.transform = `translate(${c.posX + mx}px, ${c.posY + my}px) rotate(${c.rot}deg)`;
+  });
+});
 </script>
 </body>
 </html>
